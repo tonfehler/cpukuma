@@ -6,10 +6,11 @@ import (
 	"io"
 	"net/http"
 	"os"
-	"os/exec"
 	"path/filepath"
-	"strconv"
-	"strings"
+	"time"
+
+	"github.com/shirou/gopsutil/v3/cpu"
+	"github.com/shirou/gopsutil/v3/mem"
 )
 
 /*
@@ -20,7 +21,7 @@ type Config struct {
 	CPUPushURL        string  `json:"cpu_push_url"`
 	CpuAlertThreshold float64 `json:"cpualert"`
 	MemPushURL        string  `json:"mem_push_url"`
-	MemAlertThreshold float64 `json:"memualert"`
+	MemAlertThreshold float64 `json:"memalert"`
 }
 
 /*
@@ -69,97 +70,33 @@ func loadConfig() (*Config, error) {
 
 /*
 Function getCPULoad
-Reads the System CPU Load with OS functions
+Reads the system CPU usage percentage (1-second sample), cross-platform.
 */
 func getCPULoad() float64 {
-	// Output looks like: "{ 1.23 2.34 3.45 }"
-	out, err := exec.Command("sysctl", "-n", "vm.loadavg").Output()
-	if err != nil {
+	percents, err := cpu.Percent(time.Second, false)
+	if err != nil || len(percents) == 0 {
 		fmt.Println("Error reading CPU load:", err)
 		return 0.0
 	}
 
-	s := strings.Trim(strings.TrimSpace(string(out)), "{} ")
-	fields := strings.Fields(s)
-	if len(fields) < 1 {
-		fmt.Println("Unexpected sysctl output:", string(out))
-		return 0.0
-	}
-
-	load, err := strconv.ParseFloat(fields[0], 64)
-	if err != nil {
-		fmt.Println("Error parsing CPU load:", err)
-		return 0.0
-	}
-
-	fmt.Printf("CPU Load (1m avg): %.2f\n", load)
+	load := percents[0]
+	fmt.Printf("CPU Load: %.2f%%\n", load)
 	return load
 }
 
 /*
 Function getRAMUsage
-Reads the System RAM usage as a percentage using vm_stat and sysctl
+Reads the system RAM usage percentage, cross-platform.
 */
 func getRAMUsage() float64 {
-	// Get total physical memory in bytes
-	totalOut, err := exec.Command("sysctl", "-n", "hw.memsize").Output()
+	v, err := mem.VirtualMemory()
 	if err != nil {
-		fmt.Println("Error reading total RAM:", err)
-		return 0.0
-	}
-	totalBytes, err := strconv.ParseInt(strings.TrimSpace(string(totalOut)), 10, 64)
-	if err != nil {
-		fmt.Println("Error parsing total RAM:", err)
+		fmt.Println("Error reading RAM usage:", err)
 		return 0.0
 	}
 
-	// Get page statistics from vm_stat
-	vmOut, err := exec.Command("vm_stat").Output()
-	if err != nil {
-		fmt.Println("Error reading vm_stat:", err)
-		return 0.0
-	}
-
-	pageSize := int64(4096)
-	var active, inactive, wired int64
-
-	for line := range strings.SplitSeq(string(vmOut), "\n") {
-		var val int64
-		if strings.HasPrefix(line, "Mach Virtual Memory Statistics") {
-			// Extract page size: "page size of 16384 bytes"
-			parts := strings.Fields(line)
-			for i, p := range parts {
-				if p == "size" && i+2 < len(parts) {
-					if ps, err := strconv.ParseInt(parts[i+2], 10, 64); err == nil {
-						pageSize = ps
-					}
-				}
-			}
-		}
-		fields := strings.SplitN(line, ":", 2)
-		if len(fields) != 2 {
-			continue
-		}
-		valStr := strings.TrimRight(strings.TrimSpace(fields[1]), ".")
-		val, err = strconv.ParseInt(valStr, 10, 64)
-		if err != nil {
-			continue
-		}
-		switch strings.TrimSpace(fields[0]) {
-		case "Pages active":
-			active = val
-		case "Pages inactive":
-			inactive = val
-		case "Pages wired down":
-			wired = val
-		}
-	}
-
-	usedBytes := (active + inactive + wired) * pageSize
-	usage := float64(usedBytes) / float64(totalBytes) * 100.0
-
-	fmt.Printf("RAM Usage: %.2f%%\n", usage)
-	return usage
+	fmt.Printf("RAM Usage: %.2f%%\n", v.UsedPercent)
+	return v.UsedPercent
 }
 
 func main() {
@@ -169,7 +106,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	fmt.Printf("Config geladen: URL=%s, Interval=%ds\n", cfg.CPUPushURL)
+	fmt.Printf("Config geladen: URL=%s\n", cfg.CPUPushURL)
 
 	if getCPULoad() >= cfg.CpuAlertThreshold {
 		resp, err := http.Get(cfg.CPUPushURL)
@@ -202,5 +139,4 @@ func main() {
 		}
 		fmt.Println(string(body))
 	}
-
 }
