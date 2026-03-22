@@ -44,8 +44,9 @@ Replace the placeholder URLs with the push URLs from your Uptime Kuma monitor (M
 
 ## Building
 
+From the repository root:
 ```bash
-go build src/main.go -o cpukuma
+go build -o cpukuma src/main.go
 ```
 
 ---
