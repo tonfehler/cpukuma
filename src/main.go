@@ -13,13 +13,11 @@ import (
 )
 
 /*
-Test 2
 Struct Config
 The following struct defines key-value pairs for our config file
 */
 type Config struct {
-	PushURL           string  `json:"cpu_push_url"`
-	Interval          int     `json:"interval_seconds"`
+	CPUPushURL        string  `json:"cpu_push_url"`
 	CpuAlertThreshold float64 `json:"cpualert"`
 }
 
@@ -31,8 +29,7 @@ func loadConfig() (*Config, error) {
 
 	if _, err := os.Stat(configPath); os.IsNotExist(err) {
 		defaultCfg := Config{
-			PushURL:           "<Uptime Kuma Push URL>",
-			Interval:          60,
+			CPUPushURL:        "<Uptime Kuma Push URL>",
 			CpuAlertThreshold: 50.0,
 		}
 
@@ -102,10 +99,10 @@ func main() {
 		os.Exit(1)
 	}
 
-	fmt.Printf("Config geladen: URL=%s, Interval=%ds\n", cfg.PushURL, cfg.Interval)
+	fmt.Printf("Config geladen: URL=%s, Interval=%ds\n", cfg.CPUPushURL)
 
 	if getCPULoad() >= cfg.CpuAlertThreshold {
-		resp, err := http.Get(cfg.PushURL)
+		resp, err := http.Get(cfg.CPUPushURL)
 		if err != nil {
 			fmt.Println(err)
 			return

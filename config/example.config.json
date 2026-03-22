@@ -1,0 +1,4 @@
+{
+  "cpu_push_url": "<UptimeKuma Push URL for CPU Monitor>",
+  "cpualert" : 1.0
+}
