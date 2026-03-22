@@ -60,7 +60,7 @@ go build -o cpukuma src/main.go
 To run every minute on Linux/macOS, add a crontab entry:
 
 ```
-* * * * * /path/to/cpukuma
+* * * * * /path/to/cpukuma && ./cpukuma
 ```
 
 ---
