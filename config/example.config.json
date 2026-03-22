@@ -1,4 +1,6 @@
 {
-  "cpu_push_url": "<UptimeKuma Push URL for CPU Monitor>",
-  "cpualert" : 1.0
+  "cpu_push_url": "<Uptime Kuma Push URL>",
+  "cpualert" : 80.0,
+  "mem_push_url": "<Uptime Kuma Push URL>",
+  "memalert" : 30.0
 }
