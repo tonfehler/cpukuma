@@ -45,8 +45,7 @@ Replace the placeholder URLs with the push URLs from your Uptime Kuma monitor (M
 ## Building
 
 ```bash
-cd src
-go build -o cpukuma .
+go build src/main.go -o cpukuma
 ```
 
 ---
@@ -69,3 +68,4 @@ To run every minute on Linux/macOS, add a crontab entry:
 
 - Go 1.21+
 - An [Uptime Kuma](https://github.com/louislam/uptime-kuma) instance with push monitors configured
+- github.com/shirou/gopsutil/v3/mem
