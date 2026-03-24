@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -12,6 +13,36 @@ import (
 	"github.com/shirou/gopsutil/v3/cpu"
 	"github.com/shirou/gopsutil/v3/mem"
 )
+
+var logger *log.Logger
+
+/*
+funtion initLogger()
+This Method handels creation of the log file and folder
+*/
+func initLogger() error {
+	if err := os.MkdirAll("logs", 0755); err != nil {
+		return fmt.Errorf("logs-Verzeichnis konnte nicht erstellt werden: %w", err)
+	}
+
+	f, err := os.OpenFile("logs/log.txt", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		return fmt.Errorf("log-Datei konnte nicht geöffnet werden: %w", err)
+	}
+
+	logger = log.New(f, "", 0)
+	return nil
+}
+
+/*
+function logf
+Support-Function to handle writing logs.
+*/
+func logf(format string, args ...any) {
+	ts := time.Now().Format("2006-01-02 15:04:05")
+	msg := fmt.Sprintf(format, args...)
+	logger.Printf("[%s] %s", ts, msg)
+}
 
 /*
 Struct Config
@@ -51,7 +82,7 @@ func loadConfig() (*Config, error) {
 			return nil, fmt.Errorf("config konnte nicht geschrieben werden: %w", err)
 		}
 
-		fmt.Println("Neue config erstellt:", configPath)
+		logf("Neue config erstellt: %s", configPath)
 		return &defaultCfg, nil
 	}
 
@@ -75,12 +106,12 @@ Reads the system CPU usage percentage (1-second sample), cross-platform.
 func getCPULoad() float64 {
 	percents, err := cpu.Percent(time.Second, false)
 	if err != nil || len(percents) == 0 {
-		fmt.Println("Error reading CPU load:", err)
+		logf("Error reading CPU load: %v", err)
 		return 0.0
 	}
 
 	load := percents[0]
-	fmt.Printf("CPU Load: %.2f%%\n", load)
+	logf("CPU Load: %.2f%%", load)
 	return load
 }
 
@@ -91,52 +122,57 @@ Reads the system RAM usage percentage, cross-platform.
 func getRAMUsage() float64 {
 	v, err := mem.VirtualMemory()
 	if err != nil {
-		fmt.Println("Error reading RAM usage:", err)
+		logf("Error reading RAM usage: %v", err)
 		return 0.0
 	}
 
-	fmt.Printf("RAM Usage: %.2f%%\n", v.UsedPercent)
+	logf("RAM Usage: %.2f%%", v.UsedPercent)
 	return v.UsedPercent
 }
 
 func main() {
-	cfg, err := loadConfig()
-	if err != nil {
-		fmt.Println("Fehler beim Laden der Config:", err)
+	if err := initLogger(); err != nil {
+		fmt.Fprintln(os.Stderr, "Logger konnte nicht initialisiert werden:", err)
 		os.Exit(1)
 	}
 
-	fmt.Printf("Config geladen: URL=%s\n", cfg.CPUPushURL)
+	cfg, err := loadConfig()
+	if err != nil {
+		logf("Fehler beim Laden der Config: %v", err)
+		os.Exit(1)
+	}
+
+	logf("Config geladen: URL=%s", cfg.CPUPushURL)
 
 	if getCPULoad() >= cfg.CpuAlertThreshold {
 		resp, err := http.Get(cfg.CPUPushURL)
 		if err != nil {
-			fmt.Println(err)
+			logf("%v", err)
 			return
 		}
 		defer resp.Body.Close()
 
 		body, err := io.ReadAll(resp.Body)
 		if err != nil {
-			fmt.Println("Fehler beim Lesen der Antwort:", err)
+			logf("Fehler beim Lesen der Antwort: %v", err)
 			return
 		}
-		fmt.Println(string(body))
+		logf("%s", string(body))
 	}
 
 	if getRAMUsage() >= cfg.MemAlertThreshold {
 		resp, err := http.Get(cfg.MemPushURL)
 		if err != nil {
-			fmt.Println(err)
+			logf("%v", err)
 			return
 		}
 		defer resp.Body.Close()
 
 		body, err := io.ReadAll(resp.Body)
 		if err != nil {
-			fmt.Println("Fehler beim Lesen der Antwort:", err)
+			logf("Fehler beim Lesen der Antwort: %v", err)
 			return
 		}
-		fmt.Println(string(body))
+		logf("%s", string(body))
 	}
 }
